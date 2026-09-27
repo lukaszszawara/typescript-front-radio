@@ -1,0 +1,80 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.skipButton,
+.captionsButton {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s var(--ease), background 0.15s var(--ease);
+}
+
+.skipButton:hover:not(:disabled),
+.captionsButton:hover:not(:disabled) {
+  color: var(--color-text);
+  background: var(--color-bg-raised);
+}
+
+.skipButton:disabled,
+.captionsButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.captionsButton[aria-pressed='true'] {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.playButton {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #141414;
+  background: var(--color-accent);
+  box-shadow: 0 6px 20px rgba(245, 197, 24, 0.22);
+  transition: transform 0.15s var(--ease), filter 0.15s var(--ease);
+  flex: none;
+}
+
+.playButton:hover:not(:disabled) {
+  transform: scale(1.05);
+  filter: brightness(1.06);
+}
+
+.playButton:disabled {
+  background: var(--color-border-strong);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Wypiera przycisk napisów do prawej krawędzi wiersza. */
+.spacer {
+  flex: 1 1 auto;
+}
+
+.captionsButton {
+  margin-left: auto;
+}
+
+@media (max-width: 560px) {
+  .row {
+    gap: 6px;
+  }
+}

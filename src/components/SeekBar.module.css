@@ -1,0 +1,123 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.track {
+  position: relative;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.track::before,
+.track::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  pointer-events: none;
+}
+
+.track::before {
+  background: var(--color-bg-raised);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.track::after {
+  background: linear-gradient(
+    to right,
+    var(--color-accent) 0 var(--played),
+    rgba(255, 255, 255, 0.18) var(--played) var(--buffered),
+    transparent var(--buffered) 100%
+  );
+  right: auto;
+  width: 100%;
+}
+
+.range {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  cursor: pointer;
+}
+
+.track[data-disabled] .range {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.range::-webkit-slider-runnable-track {
+  height: 22px;
+  background: transparent;
+}
+
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s var(--ease);
+}
+
+.range:hover::-webkit-slider-thumb,
+.range:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.18);
+}
+
+.range::-moz-range-track {
+  height: 22px;
+  background: transparent;
+}
+
+.range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid var(--color-accent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.range:focus-visible {
+  outline: none;
+}
+
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgba(245, 197, 24, 0.35);
+}
+
+.range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgba(245, 197, 24, 0.35);
+}
+
+.times {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--color-text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.current {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.separator {
+  opacity: 0.5;
+}
