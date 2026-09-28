@@ -67,7 +67,6 @@ check('czas trwania sformatowany w karcie', Boolean(durationLine), durationLine 
 
 // ---- odtwarzanie: szukamy odcinka z plikiem obsługiwanym przez przeglądarkę ----
 let playedIndex = -1;
-let sawUnsupportedError = false;
 
 for (let i = 0; i < Math.min(totalRendered, 8); i += 1) {
   await playButtons.nth(i).click();
@@ -79,10 +78,6 @@ for (let i = 0; i < Math.min(totalRendered, 8); i += 1) {
       .then(() => 'error'),
   ]).catch(() => 'timeout');
 
-  if (outcome === 'error') {
-    sawUnsupportedError = true;
-    continue;
-  }
   if (outcome === 'ready') {
     playedIndex = i;
     break;
@@ -90,16 +85,47 @@ for (let i = 0; i < Math.min(totalRendered, 8); i += 1) {
 }
 
 check('znaleziono odcinek odtwarzający się w przeglądarce', playedIndex >= 0, `indeks ${playedIndex}`);
-check(
-  'nieobsługiwany kodek pokazuje czytelny błąd (nie pustą listę)',
-  sawUnsupportedError,
-  sawUnsupportedError ? 'wystąpił' : 'nie było takiego przypadku w próbce',
-);
 
 if (playedIndex < 0) {
   await browser.close();
   process.exit(1);
 }
+
+// ---- ścieżka błędu kodeka: wymuszamy ją, bo nie wolno na niej polegać ----
+// Wcześniej check przejeżdżał po danych w poszukiwaniu odcinka, który się nie
+// odtworzy. To testowało zawartość API, nie aplikację — a po podmianie
+// wariantu MP2 na MP3 taki odcinek zniknął i check przestał mieć co robić.
+// Teraz podstawiamy asset z adresem `.wav`, którego przeglądarka nie
+// zdekoduje, i sprawdzamy, że UI pokazuje czytelny komunikat.
+await page.route('**/api/media/**', async (route) => {
+  const response = await route.fetch();
+  const body = await response.json();
+  const target = body?.data ?? body;
+  if (target?.url) target.url = target.url.replace(/\.mp3$/i, '.wav');
+  await route.fulfill({ response, json: body });
+});
+
+let errorText = null;
+await playButtons.nth(playedIndex).click();
+try {
+  await page.waitForSelector('aside[aria-label="Odtwarzacz"] [role="alert"]', { timeout: 45000 });
+  errorText = await page.locator('aside[aria-label="Odtwarzacz"] [role="alert"]').first().innerText();
+} catch {
+  errorText = null;
+}
+
+check(
+  'nieobsługiwany kodek pokazuje czytelny błąd (nie pustą listę)',
+  Boolean(errorText && errorText.trim().length > 0),
+  errorText ? errorText.split('\n')[0].slice(0, 70) : 'brak komunikatu',
+);
+
+await page.unroute('**/api/media/**');
+// wracamy do odcinka, który na pewno się odtwarza, dla kolejnych sprawdzeń
+await playButtons.nth(playedIndex).click();
+await page
+  .waitForFunction(isReady, null, { timeout: 45000 })
+  .catch(() => console.warn('  (nie udało się wrócić do odtwarzania po teście błędu)'));
 
 const mediaInfo = await page.evaluate((sel) => {
   const el = document.querySelector(sel);
@@ -200,28 +226,29 @@ check(
 
 await page.locator('button[aria-label="Przełącz napisy"]').first().click();
 await page.waitForTimeout(2500);
-const cue = await page.evaluate(() => {
+// Cue z tracku i tekst panelu czytamy w jednym evaluate — osobne odczyty
+// dawały wyścig: między nimi playback przesuwał aktywny cue, więc asercja
+// szukała w panelu tekstu, który właśnie zniknął.
+const captions = await page.evaluate(() => {
   const el = document.querySelector('audio:not([hidden]), video:not([hidden])');
-  const track = el.textTracks[0];
-  if (!track) return null;
-  const active = track.activeCues;
+  const track = el?.textTracks[0];
+  const active = track?.activeCues;
   return {
-    mode: track.mode,
-    text: active && active.length > 0 ? active[0].text.trim().slice(0, 50) : null,
+    mode: track?.mode ?? null,
+    cueText: active && active.length > 0 ? active[0].text.trim().slice(0, 50) : null,
+    panelText: document.querySelector('aside[aria-label="Odtwarzacz"]')?.innerText ?? '',
   };
 });
 check(
   'napisy włączone i renderują tekst',
-  cue?.mode === 'showing' && Boolean(cue.text),
-  JSON.stringify(cue),
+  captions.mode === 'showing' && Boolean(captions.cueText),
+  JSON.stringify({ mode: captions.mode, text: captions.cueText }),
 );
 
-await page.waitForTimeout(600);
-const cueInUi = await page.locator('aside[aria-label="Odtwarzacz"]').innerText();
 check(
   'tekst napisu widoczny w panelu',
-  Boolean(cue?.text) && cueInUi.includes(cue.text),
-  `szukano: ${JSON.stringify(cue?.text)}`,
+  Boolean(captions.cueText) && captions.panelText.includes(captions.cueText),
+  `szukano: ${JSON.stringify(captions.cueText)}`,
 );
 
 // ---- przełączenie formatu ----------------------------------------------

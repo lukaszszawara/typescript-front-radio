@@ -33,6 +33,11 @@ export interface MediaAsset {
   readonly title: string;
   /** Znormalizowany, publicznie dostępny URL (po nadpisaniu adresu VPN). */
   readonly url: string;
+  /**
+   * Adres, który przeglądarka nie odtworzy (MPEG-1 Layer II w `.wav`), gdy
+   * `url` wskazuje na podmieniony wariant MP3. `null`, gdy nie było zamiany.
+   */
+  readonly sourceUri: string | null;
   readonly durationSeconds: number | null;
   readonly vttUrl: string | null;
   readonly isHls: boolean;

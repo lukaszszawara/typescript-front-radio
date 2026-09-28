@@ -90,6 +90,7 @@ export function normalizeMediaAsset(
     id: raw.id,
     title: trimmed(raw.title) ?? (kind === 'video' ? 'Materiał wideo' : 'Materiał audio'),
     url,
+    sourceUri: null,
     durationSeconds: positiveNumber(raw.durationSeconds) ?? fallbackDuration,
     vttUrl: toPublicMediaUrl(raw.transcription?.vttUri),
     isHls: isHlsUri(url),

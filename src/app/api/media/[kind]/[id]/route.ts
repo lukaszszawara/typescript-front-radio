@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { CmsError, fetchMediaAsset } from '@/lib/cms';
-import type { MediaKindName } from '@/lib/types';
+import { resolvePlayableAudioUrl } from '@/lib/media-url';
+import type { MediaAsset, MediaKindName } from '@/lib/types';
 
 export const revalidate = 3600;
 
@@ -15,6 +16,22 @@ function readInt(value: string | null): number | null {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 0) return null;
   return parsed;
+}
+
+/**
+ * Nagrania w `.wav` bywają zakodowane w MPEG-1 Layer II, którego żadna
+ * przeglądarka nie odtworzy. Dla audio sprawdzamy HEAD-em, czy CDN trzyma
+ * obok wariant `.mp3` o tym samym czasie trwania, i podmieniamy URL.
+ * Wideo nie ma wariantu alternatywnego, więc jest pomijane.
+ */
+async function playableOverride(
+  kind: MediaKindName,
+  asset: MediaAsset,
+): Promise<{ url: string; sourceUri: string | null }> {
+  if (kind !== 'audio') return { url: asset.url, sourceUri: null };
+
+  const resolved = await resolvePlayableAudioUrl(asset.url);
+  return { url: resolved.url ?? asset.url, sourceUri: resolved.sourceUri };
 }
 
 /**
@@ -53,9 +70,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(asset, {
-      headers: { 'Cache-Control': 'public, max-age=600, stale-while-revalidate=3600' },
-    });
+    return NextResponse.json(
+      { ...asset, ...(await playableOverride(kind, asset)) },
+      { headers: { 'Cache-Control': 'public, max-age=600, stale-while-revalidate=3600' } },
+    );
   } catch (error) {
     if (error instanceof CmsError) {
       return NextResponse.json(

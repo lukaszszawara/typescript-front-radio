@@ -77,3 +77,80 @@ export function isHlsUri(uri: string | null | undefined): boolean {
   const lowered = withoutQuery.toLowerCase();
   return HLS_EXTENSIONS.some((ext) => lowered.endsWith(ext));
 }
+
+/**
+ * Polskie Radio trzyma część nagrań jako `audio.wav`, ale zawartość pliku to
+ * MPEG-1 Layer II (kodek `0x0050` = WAVE_FORMAT_MPEG w chunku `fmt `, 48 kHz
+ * stereo, 256 kbps). Żadna przeglądarka nie ma dekodera Layer II — element
+ * `<audio>` kończy na `MediaError` kod 4, a FFmpeg zgłasza „no supported streams”.
+ * Nie da się tego obejść zmianą typu MIME ani nagłówków: bajty muszą zostać
+ * zdekodowane przez przeglądarkę.
+ *
+ * CDN trzyma jednak obok tego samego materiału wariant `.mp3` o identycznym
+ * czasie trwania i dwa razy mniejszy. Zmieniamy więc rozszerzenie i sprawdzamy
+ * HEAD-em, czy wariant istnieje — podmiana „w ciemno” zepsułaby nagrania,
+ * którym MP3 nie towarzyszy.
+ */
+const WAV_EXTENSION = '.wav';
+const MP3_EXTENSION = '.mp3';
+
+/** Nagłówek HTTP, którego oczekujemy od wariantu MP3. */
+const PLAYABLE_MIME = 'audio/mpeg';
+
+const PROBE_TIMEOUT_MS = 5_000;
+
+export type MediaProbe = (url: string) => Promise<boolean>;
+
+async function headProbe(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    return (response.headers.get('content-type') ?? '')
+      .toLowerCase()
+      .startsWith(PLAYABLE_MIME);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Buduje adres wariantu MP3 dla pliku `.wav` (albo `null`, gdy zamiana
+ * nie ma sensu). Query string i hash są zachowane.
+ */
+export function toMp3SiblingUrl(uri: string | null | undefined): string | null {
+  if (typeof uri !== 'string') return null;
+
+  const trimmed = uri.trim();
+  if (trimmed === '') return null;
+
+  const match = /^([^?#]*?)(\.wav)([?#].*)?$/i.exec(trimmed);
+  if (match === null) return null;
+
+  return `${match[1]}${MP3_EXTENSION}${match[3] ?? ''}`;
+}
+
+/**
+ * Zwraca adres, który przeglądarka faktycznie odtworzy, oraz oryginalny,
+ * gdy doszło do podmiany. Dla wszystkiego poza `.wav` nic nie robi.
+ */
+export async function resolvePlayableAudioUrl(
+  uri: string | null | undefined,
+  probe: MediaProbe = headProbe,
+): Promise<{ url: string | null; sourceUri: string | null }> {
+  const candidate = toMp3SiblingUrl(uri);
+  if (candidate === null) {
+    return { url: typeof uri === 'string' && uri.trim() !== '' ? uri.trim() : null, sourceUri: null };
+  }
+
+  // Awaria probe nie może wywrócić całej odpowiedzi — zostawiamy wtedy oryginał.
+  const available = await probe(candidate).catch(() => false);
+
+  if (available) {
+    return { url: candidate, sourceUri: (uri as string).trim() };
+  }
+
+  return { url: (uri as string).trim(), sourceUri: null };
+}
