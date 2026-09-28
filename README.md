@@ -71,7 +71,7 @@ cp .env.example .env.local
 ### Testy
 
 ```bash
-pnpm test            # 32 testy jednostkowe (vitest)
+pnpm test            # 42 testy jednostkowe (vitest)
 pnpm typecheck
 pnpm verify:player   # 27 sprawdzeń E2E w prawdziwej przeglądarce
 ```
@@ -149,34 +149,7 @@ każde przełączenie robiłoby remount i gubiło stan (pozycję, głośność, 
 Dzięki trzymaniu obu elementów przełączenie audio ↔ wideo jest natychmiastowe —
 i **przenosi pozycję odtwarzania**, bo to ta sama treść.
 
-### 2. Nadpisanie adresów „za VPN-em”
-
-`uri` z API może wskazywać na zasób dostępny tylko wewnątrz sieci Polskiego Radia:
-
-```
-https://dev-cms-gateway.polskieradio.pl/~~/portalfs.prsa.pl/UploadFiles$/...
-→ https://cdn6.polskieradio.pl/~/portalfs.prsa.pl/UploadFiles$/...
-```
-
-`toPublicMediaUrl()` obsługuje: adresy już publiczne (bez zmian), hosty `dev-*`,
-marker `/~~` w ścieżce, zdublowany prefiks `cdn6.polskieradio.pl`, powtórzone
-ukośniki oraz zachowanie query stringa i hasha. Ta sama funkcja przetwarza `uri`
-napisów. Pokryta 11 testami jednostkowymi.
-
-### 3. Rozwiązywanie sporu o formaty audio
-
-Media w `dev-proxy` bywają w rozszerzeniu `.wav`, ale **wewnątrz używają Dolby AC-3**
-(`audioFormat = 0x0050`), a nie PCM. Przeglądarki nie dekodują AC-3 w kontenerze WAV,
-więc `<audio>` kończy się `MediaError` z kodem 4. Na 28 sprawdzonych assetach 25 to MP3
-(odtwarzają się bez problemu), 2 to wspomniane WAV-y z AC-3.
-
-Nie da się tego obejść po stronie aplikacji — API udostępnia wyłącznie `uri` tego
-pliku (`availableFormats` bywa puste), a zmiana kodeka to zadanie dla CMS.
-Player pokazuje wtedy konkretny komunikat („Nieobsługiwany format”) z podpowiedzią
-przełączenia na wersję wideo, jeśli odcinek ją ma. Zmianę widać w logu
-weryfikacyjnym: „nieobsługiwany kodek pokazuje czytelny błąd".
-
-### 4. Napisy WebVTT przez `blob:`
+### 2. Napisy WebVTT przez `blob:`
 
 CDN podaje pliki `.vtt` jako `application/octet-stream` z nagłówkiem
 `X-Content-Type-Options: nosniff`. Przeglądarki odrzucają taką ścieżkę
@@ -190,7 +163,7 @@ Drobiazg, który kosztował godzinę: **`cuechange` nie bubble'uje w Chrome**, a
 `TextTrack` bywa podmieniany przy ponownym załadowaniu ścieżki. Bieżący cue
 wyliczamy więc z `timeupdate`, a nasłuch na elemencie traktujemy jako uzupełnienie.
 
-### 5. Seek: jeden seek na „puszczenie”
+### 3. Seek: jeden seek na „puszczenie”
 
 Pasek postępu to `input[type=range]` pod własną warstwą wizualną — dzięki temu
 strzałki/Home/End, `role=slider` i komunikaty czytników ekranu działają bez pisania
@@ -203,7 +176,7 @@ przeliczyć stanu, więc closure widziałby poprzednią pozycję i cofałoby odt
 przy każdym przeciągnięciu. Dodatkowo commitujemy tylko wtedy, gdy przeciąganie
 faktycznie trwało — samo `blur` nie może cofnąć pozycji.
 
-### 6. Stany (wymagane w zadaniu)
+### 4. Stany (wymagane w zadaniu)
 
 | Stan | Gdzie | Komunikat |
 | --- | --- | --- |
@@ -216,7 +189,7 @@ faktycznie trwało — samo `blur` nie może cofnąć pozycji.
 | Błąd odtwarzania | `PlayerPanel` | Nazwa błędu z `MediaError`, komunikat, „Spróbuj ponownie” (zachowuje pozycję) |
 | Nieobsługiwany kodek | `PlayerPanel` | Podpowiedź przełączenia na wideo, jeśli istnieje |
 
-### 7. Dostępność i responsywność
+### 5. Dostępność i responsywność
 
 - Nawigacja klawiaturą: `spacja`/`K` play-pauza, `←`/`→` przewijanie, `C` napisy
   (ignorowane, gdy fokus jest w polu tekstowym).
@@ -227,26 +200,11 @@ faktycznie trwało — samo `blur` nie może cofnąć pozycji.
   (obie szerokości sprawdzone automatycznie).
 - `prefers-reduced-motion` wyłącza animacje.
 
-### 8. hls.js — przygotowane, nie aktywne
-
-`isHlsUri()` wykrywa `.m3u8`, a `useMediaElement` dynamicznie importuje `hls.js`
-tylko wtedy, gdy format naprawdę tego wymaga (Safari dostaje natywną ścieżkę).
-W środowisku testowym API nie zwraca strumieni HLS, więc kod nie jest używany —
-dlatego import jest dynamiczny, a biblioteka nie waży bundle'u na co dzień.
-`hls.js` to biblioteka niskopoziomowa, więc mieści się w dozwolonym zakresie.
-
-### 9. Drobiazgi świadomie pominięte
-
-- `next/image` dla okładek: CDN dopuszcza hotlink i CORS, a proxy obrazu tylko
-  dodałoby przebieg. Świadomie użyto natywnego `<img>` z `loading="lazy"`.
-- Paginacji z numerami: przy 82 tys. odcinków „pokaż więcej” jest czytelniejsze.
-- Deduplikacja assetów po `id` — popyt jest rzadki, a `revalidate` w Next ogarnia cache.
-
 ---
 
 ## Testy
 
-**Jednostkowe (`pnpm test`, vitest, 32 testy)** — najważniejsza część, bo logika
+**Jednostkowe (`pnpm test`, vitest, 42 testy)** — najważniejsza część, bo logika
 normalizacji jest jedynym miejscem, gdzie cicha zmiana danych z API psuje UI:
 
 - `tests/media-url.test.ts` — nadpisanie adresów VPN w wariantach (marker w ścieżce,
@@ -263,9 +221,10 @@ ekranie), przełączenie wideo → audio z przeniesieniem pozycji, brak wycieku 
 do kolejnego odcinka, „pokaż więcej”, responsywność (mobile/desktop, brak poziomego
 scrolla) oraz brak błędów w konsoli.
 
-Skrypt sam wyszukuje odcinek, który da się odtworzyć w przeglądarce, i osobno
-sprawdza, że plik z nieobsługiwanym kodekiem pokazuje czytelny błąd — dzięki temu
-przechodzi niezależnie od tego, który odcinek akurat trafi na pierwszą stronę.
+Skrypt sam wyszukuje odcinek, który da się odtworzyć w przeglądarce. Ścieżkę błędu
+kodeka nie szuka w danych — wymusza ją, podstawiając asset z adresem `.wav`, którego
+przeglądarka nie zdekoduje. Dzięki temu sprawdzenie jest niezależne od tego, jaki
+odcinek trafi na pierwszą stronę.
 
 ---
 
@@ -284,8 +243,8 @@ przechodzi niezależnie od tego, który odcinek akurat trafi na pierwszą stron�
 | README, commity, sprzątanie | ~1 h |
 
 Uwaga: około 2 h zdiagnozowano i naprawiono cztery realne problemy, których nie da
-się zobaczyć bez uruchomienia odtwarzania w przeglądarce — brak dekodowania AC-3
-w WAV-ach z API, odrzucane napisy WebVTT (`nosniff`), niebubble'ujące zdarzenie
+się zobaczyć bez uruchomienia odtwarzania w przeglądarce — brak dekodowania
+MPEG-1 Layer II w WAV-ach z API, odrzucane napisy WebVTT (`nosniff`), niebubble'ujące zdarzenie
 `cuechange` oraz wyciek pozycji odtwarzania do kolejnego odcinka. Samo `tsc` i testy
 jednostkowe były w tych przypadkach zielone.
 
